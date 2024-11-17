@@ -13,11 +13,8 @@ import time
 import os
 
 from PIL import Image, ImageFilter
-import ddddocr
 
 import pytesseract
-
-DdddOcr = ddddocr.DdddOcr()
 
 from const import VK_CODE, BALANCE_CONTROL_ID_GROUP
 
