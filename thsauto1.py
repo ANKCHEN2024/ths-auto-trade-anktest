@@ -1,3 +1,5 @@
+import re
+
 import win32api
 import win32gui
 import win32ui
@@ -10,7 +12,7 @@ import time
 
 import os
 
-from PIL import Image
+from PIL import Image, ImageFilter
 import ddddocr
 
 import pytesseract
@@ -22,7 +24,7 @@ from const import VK_CODE, BALANCE_CONTROL_ID_GROUP
 sleep_time = 0.2
 short_sleep_time = 0.05
 refresh_sleep_time = 0.5
-retry_time = 5
+retry_time = 1
 
 window_title = u'网上股票交易系统5.0'
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
@@ -33,7 +35,6 @@ from PIL import ImageGrab
 def ocr_rect(bbox):
     # 使用Pillow库截图
     img = ImageGrab.grab(bbox=bbox)
-
 
     # 将图像保存到文件
     img.save('ret.png')
@@ -48,14 +49,28 @@ def ocr_rect(bbox):
     # 进行二值化
     _, binary = cv2.threshold(gray, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
 
-    # 保存预处理后的图像
-    cv2.imwrite('ret1.png', binary)
-    # 加载图像
-    image = Image.open('ret1.png')
+    # 增加图像分辨率
+    scale_factor = 2  # 可以根据需要调整放大比例
+    resized_img = cv2.resize(gray, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_CUBIC)
+
+    # 转换为 PIL 图像
+    pil_img = Image.fromarray(resized_img)
+
+    # 应用高斯模糊
+    smoothed_img = pil_img.filter(ImageFilter.GaussianBlur(radius=1))
+
+    # 可选：应用锐化滤波器以保持边缘清晰
+    sharpened_img = smoothed_img.filter(ImageFilter.SHARPEN)
+
+    # 将图像转换回 NumPy 数组
+    import numpy as np
+    processed_img = np.array(sharpened_img)
+
+    # 保存处理后的图像
+    cv2.imwrite('ret1.png', processed_img)
 
     # 使用 pytesseract 进行 OCR 识别,中+英更准确
-    text = pytesseract.image_to_string(image,lang=r'chi_sim+eng')
-    image.show()
+    text = pytesseract.image_to_string(Image.fromarray(processed_img), lang=r'chi_sim+eng')
     return text.strip()
 
 
@@ -81,12 +96,12 @@ def hot_key(keys):
         time.sleep(short_sleep_time)  # Adding a short delay between key releases
 
 
-def set_text(hwnd, string):
+def set_text(hwnd, string, backspace_press_time=0.1):
     win32gui.SetForegroundWindow(hwnd)
     win32api.SendMessage(hwnd, win32con.EM_SETSEL, 0, -1)
 
     win32api.keybd_event(VK_CODE['backspace'], 0, 0, 0)
-    time.sleep(0.5)
+    time.sleep(backspace_press_time)
     win32api.keybd_event(VK_CODE['backspace'], 0, win32con.KEYEVENTF_KEYUP, 0)
     for char in string:
         if char.isupper():
@@ -98,6 +113,7 @@ def set_text(hwnd, string):
             win32api.keybd_event(VK_CODE[char], 0, 0, 0)
             win32api.keybd_event(VK_CODE[char], 0, win32con.KEYEVENTF_KEYUP, 0)
         time.sleep(short_sleep_time)
+
 
 def get_text(hwnd):
     length = ctypes.windll.user32.SendMessageW(hwnd, win32con.WM_GETTEXTLENGTH)
@@ -308,24 +324,34 @@ class ThsAuto:
         set_text(ctrl, stock_no)
         time.sleep(sleep_time)
         if price is not None:
-            time.sleep(sleep_time)
             price = '%.3f' % price
             ctrl = win32gui.GetDlgItem(hwnd, 0x409)
-            time.sleep(sleep_time)
-            set_text(ctrl, price)
-            time.sleep(sleep_time)
+            set_text(ctrl, price, 0.5)
+            time.sleep(short_sleep_time)
         ctrl = win32gui.GetDlgItem(hwnd, 0x40A)
         set_text(ctrl, str(amount))
         time.sleep(sleep_time)
+        hot_key(['enter'])
+        hot_key(['enter'])
         hot_key(['enter'])
         result = None
         retry = 0
         while retry < retry_time:
             time.sleep(sleep_time)
-            result = self.get_result()
-            if result:
-                hot_key(['enter'])
-                return result
+            left, top, right, bottom = win32gui.GetWindowRect(self.hwnd_main)
+            text = ocr_rect(bbox=(right - 300, bottom - 21, right - 5, bottom))
+            if '编号' in text:
+                matches = re.findall(r'编号: (\d+)', text)
+                if matches:
+                    for _, match in enumerate(matches, start=1):
+                        print(text)
+                        hot_key(['enter'])
+                        return {
+                            'code': 1,
+                            'status': 'success',
+                            'msg': text,
+                            "entrust_no": match
+                        }
             hot_key(['enter'])
             retry += 1
         return {
@@ -344,26 +370,33 @@ class ThsAuto:
         set_text(ctrl, stock_no)
         time.sleep(sleep_time)
         if price is not None:
-            time.sleep(sleep_time)
             price = '%.3f' % price
             ctrl = win32gui.GetDlgItem(hwnd, 0x409)
-            print("set price:", price)
-            set_text(ctrl, price)
-            print(get_text(ctrl))
-            time.sleep(sleep_time)
+            set_text(ctrl, price, 0.5)
+            time.sleep(short_sleep_time)
         ctrl = win32gui.GetDlgItem(hwnd, 0x40A)
-        print("set amount:", amount)
         set_text(ctrl, str(amount))
         time.sleep(sleep_time)
+        hot_key(['enter'])
+        hot_key(['enter'])
         hot_key(['enter'])
         result = None
         retry = 0
         while retry < retry_time:
             time.sleep(sleep_time)
-            result = self.get_result()
-            if result:
-                hot_key(['enter'])
-                return result
+            left, top, right, bottom = win32gui.GetWindowRect(self.hwnd_main)
+            text = ocr_rect(bbox=(right - 450, bottom - 19, right, bottom))
+            if '编号' in text:
+                matches = re.findall(r'编号: (\d+)', text)
+                if matches:
+                    for _, match in enumerate(matches, start=1):
+                        print(text)
+                        return {
+                            'code': 1,
+                            'status': 'success',
+                            'msg': text,
+                            "entrust_no": match
+                        }
             hot_key(['enter'])
             retry += 1
         return {
