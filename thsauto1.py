@@ -96,13 +96,27 @@ def hot_key(keys):
         time.sleep(short_sleep_time)  # Adding a short delay between key releases
 
 
-def set_text(hwnd, string, backspace_press_time=0.1):
+def set_text(hwnd, string, isPrice=False):
     win32gui.SetForegroundWindow(hwnd)
     win32api.SendMessage(hwnd, win32con.EM_SETSEL, 0, -1)
+    if isPrice:  # 如果是价格输入框则双击全选后再删除
+        rect = win32gui.GetWindowRect(hwnd)
+        x, y, w, h = rect
+        center_x = x + (w - x) // 2
+        center_y = y + (h - y) // 2
+
+        # 发送鼠标双击消息
+        win32api.SetCursorPos((center_x, center_y))
+        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, center_x, center_y, 0, 0)
+        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, center_x, center_y, 0, 0)
+        time.sleep(0.1)  # 等待一段时间
+        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, center_x, center_y, 0, 0)
+        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, center_x, center_y, 0, 0)
 
     win32api.keybd_event(VK_CODE['backspace'], 0, 0, 0)
-    time.sleep(backspace_press_time)
+    time.sleep(short_sleep_time)
     win32api.keybd_event(VK_CODE['backspace'], 0, win32con.KEYEVENTF_KEYUP, 0)
+
     for char in string:
         if char.isupper():
             win32api.keybd_event(0xA0, 0, 0, 0)
@@ -112,7 +126,7 @@ def set_text(hwnd, string, backspace_press_time=0.1):
         else:
             win32api.keybd_event(VK_CODE[char], 0, 0, 0)
             win32api.keybd_event(VK_CODE[char], 0, win32con.KEYEVENTF_KEYUP, 0)
-        time.sleep(short_sleep_time)
+        time.sleep(0.1)
 
 
 def get_text(hwnd):
@@ -326,7 +340,7 @@ class ThsAuto:
         if price is not None:
             price = '%.3f' % price
             ctrl = win32gui.GetDlgItem(hwnd, 0x409)
-            set_text(ctrl, price, 0.5)
+            set_text(ctrl, price, True)
             time.sleep(short_sleep_time)
         ctrl = win32gui.GetDlgItem(hwnd, 0x40A)
         set_text(ctrl, str(amount))
@@ -372,7 +386,7 @@ class ThsAuto:
         if price is not None:
             price = '%.3f' % price
             ctrl = win32gui.GetDlgItem(hwnd, 0x409)
-            set_text(ctrl, price, 0.5)
+            set_text(ctrl, price, True)
             time.sleep(short_sleep_time)
         ctrl = win32gui.GetDlgItem(hwnd, 0x40A)
         set_text(ctrl, str(amount))
