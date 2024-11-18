@@ -2,7 +2,7 @@
 
 
 
-参考项目https://github.com/match5/thsauto对买卖做了点改进适配客户端
+参考项目https://github.com/match5/thsauto  对买卖做了点改进适配客户端
 
 同花顺自动下单工具
 
