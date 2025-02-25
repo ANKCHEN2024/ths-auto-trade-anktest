@@ -7,7 +7,7 @@
 同花顺自动下单工具
 
 ```
-python .\server.py  192.168.0.116 5000 C:\Users\match\Desktop\THS\xiadan.exe
+python .\server.py  192.168.0.116 5000 D:\同花顺软件\同花顺\xiadan.exe
 ```
 - 查询资金账户  
 http://192.168.0.116:5000/thsauto/balance  
